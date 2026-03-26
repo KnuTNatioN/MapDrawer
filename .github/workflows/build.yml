@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*.*.*'   # Auslöser: git tag v1.0.0 && git push --tags
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write   # Nötig, um einen Release anzulegen
 
