@@ -212,6 +212,25 @@ class MapModel:
                 err += dx
                 y0 += sy
 
+    def rect_outline(
+        self, x1: int, y1: int, x2: int, y2: int
+    ) -> List[Tuple[int, int]]:
+        """Return in-bounds grid cells on the perimeter of a rectangle."""
+        lx, rx = min(x1, x2), max(x1, x2)
+        ty, by = min(y1, y2), max(y1, y2)
+        cells: set = set()
+        for x in range(lx, rx + 1):
+            if self.in_bounds(x, ty):
+                cells.add((x, ty))
+            if self.in_bounds(x, by):
+                cells.add((x, by))
+        for y in range(ty, by + 1):
+            if self.in_bounds(lx, y):
+                cells.add((lx, y))
+            if self.in_bounds(rx, y):
+                cells.add((rx, y))
+        return list(cells)
+
     def midpoint_circle(
         self, cx: int, cy: int, r: int
     ) -> List[Tuple[int, int]]:

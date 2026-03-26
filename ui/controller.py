@@ -36,6 +36,7 @@ class MapController:
         self.current_paint_tile: int = 1
         self.line_start:   Optional[Tuple[int, int, int]] = None
         self.circle_start: Optional[Tuple[int, int, int]] = None
+        self.rect_start:   Optional[Tuple[int, int, int]] = None
 
     # ------------------------------------------------------------------
     # Mode helpers
@@ -44,12 +45,14 @@ class MapController:
     def _active_mode_name(self) -> str:
         if self.view.circle_mode.get():
             return "Kreis"
+        if self.view.rect_mode.get():
+            return "Rechteck"
         if self.view.fill_mode.get():
             return "Füllen"
         return "Malen"
 
     def select_tool(self, tool: str) -> None:
-        """Switch active tool: 'pencil', 'fill', or 'circle'.
+        """Switch active tool: 'pencil', 'fill', 'circle', or 'rect'.
 
         Pressing the same tool a second time toggles back to pencil.
         """
@@ -57,8 +60,11 @@ class MapController:
             tool = "pencil"
         if tool == "circle" and self.view.circle_mode.get():
             tool = "pencil"
+        if tool == "rect"   and self.view.rect_mode.get():
+            tool = "pencil"
         self.view.fill_mode.set(tool == "fill")
         self.view.circle_mode.set(tool == "circle")
+        self.view.rect_mode.set(tool == "rect")
         self.view.update_title(self.file_path, self.model, self._active_mode_name())
 
     # kept for any external callers
@@ -214,6 +220,11 @@ class MapController:
             self.circle_start = (x, y, tile_id)
             return
 
+        if self.view.rect_mode.get():
+            self.rect_start = (x, y, tile_id)
+            self.view.draw_preview_rect(x, y, x, y)
+            return
+
         if self._line_modifier_active(event):
             self.line_start = (x, y, tile_id)
             self.view.draw_preview_line(x, y, x, y)
@@ -244,6 +255,11 @@ class MapController:
             self.view.draw_preview_circle(sx, sy, x, y)
             return
 
+        if self.rect_start is not None:
+            sx, sy, _ = self.rect_start
+            self.view.draw_preview_rect(sx, sy, x, y)
+            return
+
         if self.line_start is not None:
             sx, sy, _ = self.line_start
             self.view.draw_preview_line(sx, sy, x, y)
@@ -267,6 +283,14 @@ class MapController:
             self.view.clear_preview()
             self.circle_start = None
 
+        elif self.rect_start is not None:
+            if self.model.in_bounds(x, y):
+                sx, sy, tile_id = self.rect_start
+                for cx, cy in self.model.rect_outline(sx, sy, x, y):
+                    self._paint_tile(cx, cy, tile_id)
+            self.view.clear_preview()
+            self.rect_start = None
+
         elif self.line_start is not None:
             if self.model.in_bounds(x, y):
                 sx, sy, tile_id = self.line_start
@@ -284,6 +308,7 @@ class MapController:
         line_hint = (
             not self.view.circle_mode.get()
             and not self.view.fill_mode.get()
+            and not self.view.rect_mode.get()
             and self._line_modifier_active(event)
         )
         self.view.update_status(
@@ -294,6 +319,9 @@ class MapController:
             if self.circle_start is not None:
                 sx, sy, _ = self.circle_start
                 self.view.draw_preview_circle(sx, sy, x, y)
+            elif self.rect_start is not None:
+                sx, sy, _ = self.rect_start
+                self.view.draw_preview_rect(sx, sy, x, y)
             elif self.line_start is not None:
                 sx, sy, _ = self.line_start
                 self.view.draw_preview_line(sx, sy, x, y)
