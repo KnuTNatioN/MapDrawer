@@ -639,14 +639,20 @@ class MapView:
             tags="preview",
         )
 
-    def draw_preview_rect(self, sx: int, sy: int, ex: int, ey: int) -> None:
+    def draw_preview_rect(
+        self, sx: int, sy: int, ex: int, ey: int, centered: bool = False
+    ) -> None:
         self.clear_preview()
-        lx, rx = min(sx, ex), max(sx, ex)
-        ty, by = min(sy, ey), max(sy, ey)
-        x1 = lx * self._cell_size
-        y1 = ty * self._cell_size
-        x2 = (rx + 1) * self._cell_size
-        y2 = (by + 1) * self._cell_size
+        if centered:
+            hw = abs(ex - sx)
+            hh = abs(ey - sy)
+            lx, rx = sx - hw, sx + hw
+            ty, by = sy - hh, sy + hh
+        else:
+            lx, rx = min(sx, ex), max(sx, ex)
+            ty, by = min(sy, ey), max(sy, ey)
+        x1, y1 = self.cell_center(lx, ty)
+        x2, y2 = self.cell_center(rx, by)
         self.canvas.create_rectangle(
             x1, y1, x2, y2,
             outline=PREVIEW_COLOR, dash=(5, 3),
@@ -654,19 +660,33 @@ class MapView:
             tags="preview",
         )
 
-    def draw_preview_circle(self, sx: int, sy: int, ex: int, ey: int) -> None:
+    def draw_preview_circle(
+        self, sx: int, sy: int, ex: int, ey: int, centered: bool = True
+    ) -> None:
         self.clear_preview()
-        r = round(math.hypot(ex - sx, ey - sy))
-        if r <= 0:
-            return
-        pcx, pcy = self.cell_center(sx, sy)
-        r_px = r * self._cell_size
-        self.canvas.create_oval(
-            pcx - r_px, pcy - r_px, pcx + r_px, pcy + r_px,
-            outline=PREVIEW_COLOR, dash=(5, 3),
-            width=max(1, self._cell_size // 6),
-            tags="preview",
-        )
+        if centered:
+            r = round(math.hypot(ex - sx, ey - sy))
+            if r <= 0:
+                return
+            pcx, pcy = self.cell_center(sx, sy)
+            r_px = r * self._cell_size
+            self.canvas.create_oval(
+                pcx - r_px, pcy - r_px, pcx + r_px, pcy + r_px,
+                outline=PREVIEW_COLOR, dash=(5, 3),
+                width=max(1, self._cell_size // 6),
+                tags="preview",
+            )
+        else:
+            x1, y1 = self.cell_center(min(sx, ex), min(sy, ey))
+            x2, y2 = self.cell_center(max(sx, ex), max(sy, ey))
+            if x1 == x2 and y1 == y2:
+                return
+            self.canvas.create_oval(
+                x1, y1, x2, y2,
+                outline=PREVIEW_COLOR, dash=(5, 3),
+                width=max(1, self._cell_size // 6),
+                tags="preview",
+            )
 
     # ── Coordinate helpers ─────────────────────────────────────────────────────
 
