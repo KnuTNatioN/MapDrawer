@@ -50,6 +50,7 @@ _FA = {
     "pencil-alt":     "\uf303",
     "fill-drip":      "\uf576",
     "circle":         "\uf111",
+    "square":         "\uf0c8",
     "ruler-combined": "\uf546",
     "door-open":      "\uf52b",
 }
@@ -229,6 +230,7 @@ class MapView:
         self.active_tile       = tk.IntVar(value=1)
         self.fill_mode         = tk.BooleanVar(value=False)
         self.circle_mode       = tk.BooleanVar(value=False)
+        self.rect_mode         = tk.BooleanVar(value=False)
         self.show_grid         = tk.BooleanVar(value=True)
         self.door_id_var       = tk.StringVar(value="1")
         self.status_var        = tk.StringVar()
@@ -239,8 +241,9 @@ class MapView:
         self._tile_rows: Dict[int, tk.Frame]  = {}
 
         # Auto-refresh tool / tile visuals on variable changes
-        self.fill_mode.trace_add("write",  lambda *_: self._refresh_tool_buttons())
+        self.fill_mode.trace_add("write",   lambda *_: self._refresh_tool_buttons())
         self.circle_mode.trace_add("write", lambda *_: self._refresh_tool_buttons())
+        self.rect_mode.trace_add("write",   lambda *_: self._refresh_tool_buttons())
         self.active_tile.trace_add("write", lambda *_: self._refresh_tile_rows())
 
         self._build_ui()
@@ -362,6 +365,10 @@ class MapView:
             panel, "circle", "Kreis", lambda: c.select_tool("circle"),
             fallback_emoji="⭕",
         )
+        self._tool_btns["rect"] = _tool_button(
+            panel, "square", "Rechteck", lambda: c.select_tool("rect"),
+            fallback_emoji="▭",
+        )
         _line_photo = _fa_photo("ruler-combined", size=13, fg=_FG_HINT)
         _line_lbl = tk.Label(
             panel,
@@ -462,17 +469,23 @@ class MapView:
         root.bind("<g>",         lambda _e: c.on_grid_key())
         root.bind("<f>",         lambda _e: c.select_tool("fill"))
         root.bind("<k>",         lambda _e: c.select_tool("circle"))
+        root.bind("<r>",         lambda _e: c.select_tool("rect"))
 
         self._refresh_tool_buttons()
 
     # ── Tool-button visuals ────────────────────────────────────────────────────
 
     def _refresh_tool_buttons(self, *_) -> None:
-        pencil_active = not self.fill_mode.get() and not self.circle_mode.get()
+        pencil_active = (
+            not self.fill_mode.get()
+            and not self.circle_mode.get()
+            and not self.rect_mode.get()
+        )
         states = {
             "pencil": pencil_active,
             "fill":   self.fill_mode.get(),
             "circle": self.circle_mode.get(),
+            "rect":   self.rect_mode.get(),
         }
         for name, active in states.items():
             btn = self._tool_btns.get(name)
@@ -622,6 +635,21 @@ class MapView:
         self.canvas.create_line(
             x1, y1, x2, y2,
             fill=PREVIEW_COLOR, dash=(5, 3),
+            width=max(1, self._cell_size // 6),
+            tags="preview",
+        )
+
+    def draw_preview_rect(self, sx: int, sy: int, ex: int, ey: int) -> None:
+        self.clear_preview()
+        lx, rx = min(sx, ex), max(sx, ex)
+        ty, by = min(sy, ey), max(sy, ey)
+        x1 = lx * self._cell_size
+        y1 = ty * self._cell_size
+        x2 = (rx + 1) * self._cell_size
+        y2 = (by + 1) * self._cell_size
+        self.canvas.create_rectangle(
+            x1, y1, x2, y2,
+            outline=PREVIEW_COLOR, dash=(5, 3),
             width=max(1, self._cell_size // 6),
             tags="preview",
         )
