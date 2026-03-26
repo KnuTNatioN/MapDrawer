@@ -1,0 +1,110 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # Auslöser: git tag v1.0.0 && git push --tags
+
+permissions:
+  contents: write   # Nötig, um einen Release anzulegen
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Windows – MapDrawer.exe
+  # ──────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Abhängigkeiten installieren
+        run: pip install pyinstaller Pillow
+
+      - name: Windows-Executable bauen
+        run: >
+          pyinstaller
+          --onefile
+          --windowed
+          --name MapDrawer
+          --add-data "fonts;fonts"
+          main.py
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MapDrawer-Windows
+          path: dist/MapDrawer.exe
+
+  # ──────────────────────────────────────────────
+  # Linux – MapDrawer
+  # ──────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Systemabhängigkeiten installieren (Tkinter)
+        run: sudo apt-get install -y python3-tk
+
+      - name: Abhängigkeiten installieren
+        run: pip install pyinstaller Pillow
+
+      - name: Linux-Executable bauen
+        run: >
+          pyinstaller
+          --onefile
+          --windowed
+          --name MapDrawer
+          --add-data "fonts:fonts"
+          main.py
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MapDrawer-Linux
+          path: dist/MapDrawer
+
+  # ──────────────────────────────────────────────
+  # Release – beide Dateien als Download anhängen
+  # ──────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Windows-Artifact herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: MapDrawer-Windows
+          path: release/
+
+      - name: Linux-Artifact herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: MapDrawer-Linux
+          path: release/
+
+      - name: Linux-Executable ausführbar machen
+        run: chmod +x release/MapDrawer
+
+      - name: GitHub-Release erstellen und Dateien anhängen
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/MapDrawer.exe
+            release/MapDrawer
