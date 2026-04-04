@@ -35,8 +35,15 @@ class MapController:
         self.is_painting:       bool = False
         self.current_paint_tile: int = 1
         self.line_start:   Optional[Tuple[int, int, int]] = None
-        self.circle_start: Optional[Tuple[int, int, int]] = None
-        self.rect_start:   Optional[Tuple[int, int, int]] = None
+        self.circle_start: Optional[Tuple[int, int, int, bool]] = None
+        self.rect_start:   Optional[Tuple[int, int, int, bool]] = None
+        self._alt_held:    bool = False
+
+        # Track Alt key reliably (event.state is inconsistent on Windows)
+        for key in ("<Alt_L>", "<Alt_R>"):
+            root.bind(key, lambda _e: self._set_alt(True), add="+")
+        for key in ("<KeyRelease-Alt_L>", "<KeyRelease-Alt_R>"):
+            root.bind(key, lambda _e: self._set_alt(False), add="+")
 
     # ------------------------------------------------------------------
     # Mode helpers
@@ -217,12 +224,13 @@ class MapController:
         self.model.begin_action()
 
         if self.view.circle_mode.get():
-            self.circle_start = (x, y, tile_id)
+            self.circle_start = (x, y, tile_id, self._rect_modifier_active())
             return
 
         if self.view.rect_mode.get():
-            self.rect_start = (x, y, tile_id)
-            self.view.draw_preview_rect(x, y, x, y)
+            centered = self._rect_modifier_active()
+            self.rect_start = (x, y, tile_id, centered)
+            self.view.draw_preview_rect(x, y, x, y, centered)
             return
 
         if self._line_modifier_active(event):
@@ -251,13 +259,13 @@ class MapController:
             return
 
         if self.circle_start is not None:
-            sx, sy, _ = self.circle_start
-            self.view.draw_preview_circle(sx, sy, x, y)
+            sx, sy, _, centered = self.circle_start
+            self.view.draw_preview_circle(sx, sy, x, y, centered)
             return
 
         if self.rect_start is not None:
-            sx, sy, _ = self.rect_start
-            self.view.draw_preview_rect(sx, sy, x, y)
+            sx, sy, _, centered = self.rect_start
+            self.view.draw_preview_rect(sx, sy, x, y, centered)
             return
 
         if self.line_start is not None:
@@ -276,18 +284,31 @@ class MapController:
 
         if self.circle_start is not None:
             if self.model.in_bounds(x, y):
-                sx, sy, tile_id = self.circle_start
-                r = round(math.hypot(x - sx, y - sy))
-                for cx, cy in self.model.midpoint_circle(sx, sy, r):
-                    self._paint_tile(cx, cy, tile_id)
+                sx, sy, tile_id, centered = self.circle_start
+                if centered:
+                    r = round(math.hypot(x - sx, y - sy))
+                    for px, py in self.model.midpoint_circle(sx, sy, r):
+                        self._paint_tile(px, py, tile_id)
+                else:
+                    fcx = (sx + x) / 2
+                    fcy = (sy + y) / 2
+                    r = round(math.hypot(x - fcx, y - fcy))
+                    for px, py in self.model.midpoint_circle(round(fcx), round(fcy), r):
+                        self._paint_tile(px, py, tile_id)
             self.view.clear_preview()
             self.circle_start = None
 
         elif self.rect_start is not None:
             if self.model.in_bounds(x, y):
-                sx, sy, tile_id = self.rect_start
-                for cx, cy in self.model.rect_outline(sx, sy, x, y):
-                    self._paint_tile(cx, cy, tile_id)
+                sx, sy, tile_id, centered = self.rect_start
+                if centered:
+                    hw = abs(x - sx)
+                    hh = abs(y - sy)
+                    for cx, cy in self.model.rect_outline(sx - hw, sy - hh, sx + hw, sy + hh):
+                        self._paint_tile(cx, cy, tile_id)
+                else:
+                    for cx, cy in self.model.rect_outline(sx, sy, x, y):
+                        self._paint_tile(cx, cy, tile_id)
             self.view.clear_preview()
             self.rect_start = None
 
@@ -317,11 +338,11 @@ class MapController:
 
         if self.is_painting and in_bounds:
             if self.circle_start is not None:
-                sx, sy, _ = self.circle_start
-                self.view.draw_preview_circle(sx, sy, x, y)
+                sx, sy, _, centered = self.circle_start
+                self.view.draw_preview_circle(sx, sy, x, y, centered)
             elif self.rect_start is not None:
-                sx, sy, _ = self.rect_start
-                self.view.draw_preview_rect(sx, sy, x, y)
+                sx, sy, _, centered = self.rect_start
+                self.view.draw_preview_rect(sx, sy, x, y, centered)
             elif self.line_start is not None:
                 sx, sy, _ = self.line_start
                 self.view.draw_preview_line(sx, sy, x, y)
@@ -446,3 +467,9 @@ class MapController:
     @staticmethod
     def _line_modifier_active(event) -> bool:
         return bool(event.state & 0x0001) or bool(event.state & 0x0004)
+
+    def _set_alt(self, state: bool) -> None:
+        self._alt_held = state
+
+    def _rect_modifier_active(self) -> bool:
+        return self._alt_held

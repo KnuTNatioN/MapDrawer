@@ -175,4 +175,4 @@ MapDrawer/
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE)
+siehe [LICENSE](LICENSE)
