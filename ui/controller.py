@@ -1,3 +1,4 @@
+import copy
 import math
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -13,7 +14,7 @@ from core.config import (
     TILE_DEFS,
 )
 from core.model import MapModel
-from .dialogs import DoorIdDialog, NewMapDialog
+from .dialogs import DoorIdDialog, NewMapDialog, ResizeMapDialog
 from .view import MapView
 
 
@@ -183,6 +184,28 @@ class MapController:
             messagebox.showerror("Fehler beim Speichern", str(exc), parent=self.root)
 
     # ------------------------------------------------------------------
+    # Map resize
+    # ------------------------------------------------------------------
+
+    def resize_map(self) -> None:
+        dlg = ResizeMapDialog(self.root, self.model.width, self.model.height)
+        self.root.wait_window(dlg)
+        if dlg.result is None:
+            return
+        params = dlg.result
+        snapshot = (
+            "resize",
+            self.model.width,
+            self.model.height,
+            copy.deepcopy(self.model.grid),
+            dict(self.model.doors),
+        )
+        self.model._push_undo([snapshot], clear_redo=True)
+        self.model.resize(params["width"], params["height"], params["anchor"], params["fill_tile"])
+        self.view.redraw_canvas(self.model)
+        self.view.update_title(self.file_path, self.model, self._active_mode_name())
+
+    # ------------------------------------------------------------------
     # Undo / Redo
     # ------------------------------------------------------------------
 
@@ -190,19 +213,53 @@ class MapController:
         changes = self.model.pop_undo()
         if changes is None:
             return
-        affected = self.model.apply_changes(changes, reverse=True)
-        self.model.push_redo(changes)
-        for x, y in affected:
-            self.view.redraw_cell(self.model, x, y)
+        if changes[0][0] == "resize":
+            _, old_w, old_h, old_grid, old_doors = changes[0]
+            redo_snap = (
+                "resize",
+                self.model.width,
+                self.model.height,
+                copy.deepcopy(self.model.grid),
+                dict(self.model.doors),
+            )
+            self.model.push_redo([redo_snap])
+            self.model.width  = old_w
+            self.model.height = old_h
+            self.model.grid   = old_grid
+            self.model.doors  = old_doors
+            self.view.redraw_canvas(self.model)
+            self.view.update_title(self.file_path, self.model, self._active_mode_name())
+        else:
+            affected = self.model.apply_changes(changes, reverse=True)
+            self.model.push_redo(changes)
+            for x, y in affected:
+                self.view.redraw_cell(self.model, x, y)
 
     def redo(self) -> None:
         changes = self.model.pop_redo()
         if changes is None:
             return
-        affected = self.model.apply_changes(changes, reverse=False)
-        self.model.redo_to_undo(changes)
-        for x, y in affected:
-            self.view.redraw_cell(self.model, x, y)
+        if changes[0][0] == "resize":
+            _, new_w, new_h, new_grid, new_doors = changes[0]
+            undo_snap = (
+                "resize",
+                self.model.width,
+                self.model.height,
+                copy.deepcopy(self.model.grid),
+                dict(self.model.doors),
+            )
+            self.model._push_undo([undo_snap], clear_redo=False)
+            self.model.width  = new_w
+            self.model.height = new_h
+            self.model.grid   = new_grid
+            self.model.doors  = new_doors
+            self.view.redraw_canvas(self.model)
+            self.view.update_title(self.file_path, self.model, self._active_mode_name())
+        else:
+            affected = self.model.apply_changes(changes, reverse=False)
+            self.model.redo_to_undo(changes)
+            for x, y in affected:
+                self.view.redraw_cell(self.model, x, y)
 
     # ------------------------------------------------------------------
     # Mouse events

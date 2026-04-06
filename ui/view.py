@@ -300,6 +300,15 @@ class MapView:
 
         _tb_sep(toolbar)
 
+        photo = _fa_photo("ruler-combined", size=12)
+        btn = ttk.Button(toolbar, text="Resize", command=c.resize_map)
+        if photo:
+            btn.config(image=photo, compound=tk.LEFT)
+            btn._fa_photo = photo  # type: ignore[attr-defined]
+        btn.pack(side=tk.LEFT, padx=(0, 2))
+
+        _tb_sep(toolbar)
+
         photo = _fa_photo("power-off", size=12)
         btn = ttk.Button(toolbar, text="Beenden", command=root.quit)
         if photo:

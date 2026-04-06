@@ -178,6 +178,41 @@ class MapModel:
             q.extend([(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)])
         return modified
 
+    def resize(self, new_width: int, new_height: int, anchor: str, fill_tile: int) -> None:
+        """Resize the map in-place. Does NOT touch the undo/redo stacks."""
+        old_w, old_h = self.width, self.height
+
+        offsets = {
+            "nw": (0,                        0),
+            "n":  ((new_width - old_w) // 2, 0),
+            "ne": (new_width - old_w,        0),
+            "w":  (0,                        (new_height - old_h) // 2),
+            "c":  ((new_width - old_w) // 2, (new_height - old_h) // 2),
+            "e":  (new_width - old_w,        (new_height - old_h) // 2),
+            "sw": (0,                        new_height - old_h),
+            "s":  ((new_width - old_w) // 2, new_height - old_h),
+            "se": (new_width - old_w,        new_height - old_h),
+        }
+        offset_x, offset_y = offsets[anchor]
+
+        new_grid = [[fill_tile] * new_width for _ in range(new_height)]
+        for y in range(old_h):
+            for x in range(old_w):
+                nx, ny = x + offset_x, y + offset_y
+                if 0 <= nx < new_width and 0 <= ny < new_height:
+                    new_grid[ny][nx] = self.grid[y][x]
+
+        new_doors: Dict[Tuple[int, int], int] = {}
+        for (ox, oy), door_id in self.doors.items():
+            nx, ny = ox + offset_x, oy + offset_y
+            if 0 <= nx < new_width and 0 <= ny < new_height:
+                new_doors[(nx, ny)] = door_id
+
+        self.width  = new_width
+        self.height = new_height
+        self.grid   = new_grid
+        self.doors  = new_doors
+
     def validate_before_save(self) -> None:
         for (x, y), door_id in self.doors.items():
             if not self.in_bounds(x, y):

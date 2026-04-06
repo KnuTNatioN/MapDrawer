@@ -8,7 +8,13 @@ from ui.dialogs import StartupDialog
 def main() -> None:
     root = tk.Tk()
     root.title("2D Map Editor")
-    root.geometry("1400x860")
+    root.update_idletasks()
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    w, h = 1400, 860
+    x = (sw - w) // 2
+    y = (sh - h) // 2
+    root.geometry(f"{w}x{h}+{x}+{y}")
     ttk.Style(root).theme_use("clam")
 
     # Build the editor UI first so the root window exists –
